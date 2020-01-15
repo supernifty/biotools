@@ -28,12 +28,17 @@ def main(genes, refseq):
       chroms[row['name2']] = row['chrom']
 
   sys.stdout.write('Gene\tLoci\n')
-  for gene in genes:
+  for gene in sorted(genes):
     if gene not in chroms:
       logging.warn('Failed to find %s in refseq', gene)
     else:
       sys.stdout.write('{}\t{}:{}-{}\n'.format(gene, chroms[gene], mins[gene], maxs[gene]))
-    
+
+  # alt
+  sys.stdout.write('\n')
+  sys.stdout.write('{}\n'.format(' '.join(sorted(genes))))
+  sys.stdout.write('{}\n'.format(' '.join(['{}:{}-{}'.format(chroms[gene], mins[gene], maxs[gene]) for gene in sorted(genes)])))
+
   logging.info('done')
 
 if __name__ == '__main__':
