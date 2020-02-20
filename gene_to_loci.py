@@ -46,6 +46,11 @@ def main(genes, refseq, ignore_alt_chrom, sort):
       else:
         sys.stdout.write('{}\t{}:{}-{}\n'.format(gene, chroms[gene], mins[gene], maxs[gene]))
     
+  # alt
+  sys.stdout.write('\n')
+  sys.stdout.write('{}\n'.format(' '.join(sorted(genes))))
+  sys.stdout.write('{}\n'.format(' '.join(['{}:{}-{}'.format(chroms[gene], mins[gene], maxs[gene]) for gene in sorted(genes)])))
+
   logging.info('done')
 
 if __name__ == '__main__':
