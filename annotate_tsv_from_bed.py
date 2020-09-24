@@ -62,7 +62,7 @@ def main(bed, name, intersect, chrom_name, pos_name, padding):
     try:
       p = int(p)
     except:
-      logging.warn('position "%s" on line %i is not numeric', p, count + 1)
+      logging.warn('position on chromosome %s: "%s" on line %i is not numeric', c, p, count + 1)
       continue
     if c in annotations and len(annotations[c][p]) > 0:
       if name is None:
@@ -80,7 +80,7 @@ def main(bed, name, intersect, chrom_name, pos_name, padding):
           sys.stdout.write('{}\n'.format(line.strip('\r\n')))
 
     if (count + 1) % 100000 == 0:
-      logging.info('%i lines %i annotations...', count + 1, annotated)
+      logging.info('%i lines %i annotations: last position was %s:%i...', count + 1, annotated, c, p)
 
   logging.info('done. annotated %i of %i lines', annotated, count)
 
