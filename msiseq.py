@@ -5,6 +5,9 @@
   to use with hg38:
   wget http://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/simpleRepeat.txt.gz
   zcat simpleRepeat.txt.gz | cut -f2,3,4 > reference/hg38.repeats.bed
+
+  T.ind, number of microindels in all sequences/Mb
+  S.ind, number of microindels in simple sequence repeats/Mb
 '''
 
 import argparse
@@ -96,7 +99,7 @@ def msiseq(vcfs, repeats, capture, threshold, capture_size, is_maf):
           chrom = v.CHROM
  
         if capture_tree is None or chrom in capture_tree and len(capture_tree[chrom].search(v.POS-1)) > 0:
-          if chrom in repeats_tree and len(repeats_tree[chrom].search(v.POS-1)) > 0:
+          if chrom in repeats_tree and len(repeats_tree[chrom].search(v.POS)) > 0: # don't subtract one to include left-aligned indels
             # it's a simple repeat
             count += 1
           else:
