@@ -5,6 +5,9 @@
   to use with hg38:
   wget http://hgdownload.cse.ucsc.edu/goldenPath/hg38/database/simpleRepeat.txt.gz
   zcat simpleRepeat.txt.gz | cut -f2,3,4 > reference/hg38.repeats.bed
+
+  T.ind, number of microindels in all sequences/Mb
+  S.ind, number of microindels in simple sequence repeats/Mb
 '''
 
 import argparse
