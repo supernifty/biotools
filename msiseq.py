@@ -28,7 +28,11 @@ def bed_to_tree(bed):
   logging.info('parsing {}...'.format(bed))
   tree = {}
   size = overlaps = skipped = included = 0
-  for line_count, line in enumerate(open(bed, 'r')):
+  if bed.endswith('.gz'):
+    fh = gzip.open(bed, 'rt')
+  else:
+    fh = open(bed, 'r')
+  for line_count, line in enumerate(fh):
     fields = line.strip('\n').split('\t')
     if len(fields) < 3:
       skipped += 1
@@ -42,7 +46,7 @@ def bed_to_tree(bed):
     s = int(start)
     f = int(finish)
     # does it overlap with itself?
-    overlap = tree[chrom].search(s, f)
+    overlap = tree[chrom].overlap(s, f)
     if len(overlap) == 0:
       size += f - s
       add_intersect(tree, chrom, s, f) 
@@ -70,26 +74,30 @@ def bed_to_tree(bed):
 def is_indel(v):
   return len(v.REF.replace('-', '')) != len(v.ALT[0].replace('-', ''))
 
-def vcf_list(vcfs, is_maf):
+def vcf_list(vcfs, is_maf, maf_sample_col, is_maf_gzipped, maf_sample_chr, maf_sample_pos, maf_sample_ref, maf_sample_alt):
   if is_maf:
     for maf in vcfs:
       logging.info('processing %s...', maf)
-      for sample in maf_samples(maf):
+      for sample in maf_samples(maf, sample_col=maf_sample_col, is_gzipped=is_maf_gzipped):
         logging.info('processing %s with sample %s...', maf, sample)
-        yield (sample, maf_to_vcf(maf, sample))
+        yield (sample, maf_to_vcf(maf, sample, is_maf_gzipped, maf_sample_col, maf_sample_chr, maf_sample_pos, maf_sample_ref, maf_sample_alt))
   else:
     for vcf in vcfs:
       logging.info('processing %s...', vcf)
       yield (vcf, cyvcf2.VCF(vcf))
 
-def msiseq(vcfs, repeats, capture, threshold, capture_size, is_maf):
+def msiseq(vcfs, repeats, capture, threshold, capture_size, is_maf, maf_sample_col, maf_sample_chr, maf_sample_pos, maf_sample_ref, maf_sample_alt, is_maf_gzipped):
   capture_tree = None
   if capture is not None:
     capture_tree, capture_size = bed_to_tree(capture)
+  elif capture_size is None:
+    logging.fatal("No capture or capture size specified")
+    sys.exit(1)
+
   repeats_tree, repeats_size = bed_to_tree(repeats)
 
   sys.stdout.write('Sample\tS.ind.count\tS.ind\tT.ind\tClass\n')
-  for vcf, vcf_in in vcf_list(vcfs, is_maf):
+  for vcf, vcf_in in vcf_list(vcfs, is_maf, maf_sample_col, is_maf_gzipped, maf_sample_chr, maf_sample_pos, maf_sample_ref, maf_sample_alt):
     count = reject_capture = reject_repeat = 0
     for v in vcf_in:
       if is_indel(v): 
@@ -98,8 +106,8 @@ def msiseq(vcfs, repeats, capture, threshold, capture_size, is_maf):
         else:
           chrom = v.CHROM
  
-        if capture_tree is None or chrom in capture_tree and len(capture_tree[chrom].search(v.POS-1)) > 0:
-          if chrom in repeats_tree and len(repeats_tree[chrom].search(v.POS)) > 0: # don't subtract one to include left-aligned indels
+        if capture_tree is None or chrom in capture_tree and len(capture_tree[chrom].at(v.POS-1)) > 0:
+          if chrom in repeats_tree and len(repeats_tree[chrom].at(v.POS)) > 0:
             # it's a simple repeat
             count += 1
           else:
@@ -128,10 +136,10 @@ def open_file(fn, is_gzipped):
   else:
     return open(fn, 'rt')
 
-def maf_samples(maf, sample_col='Tumor_Sample_Barcode'):
+def maf_samples(maf, sample_col='Tumor_Sample_Barcode', is_gzipped=True):
   samples = set()
   header = None
-  for line, row in enumerate(csv.reader(open_file(maf, True), delimiter='\t')):
+  for line, row in enumerate(csv.reader(open_file(maf, is_gzipped), delimiter='\t')):
     if row[0].startswith('#'):
       continue
     if header is None:
@@ -142,13 +150,13 @@ def maf_samples(maf, sample_col='Tumor_Sample_Barcode'):
 
   return samples    
 
-def maf_to_vcf(maf, sample, sample_col='Tumor_Sample_Barcode', chrom_col='Chromosome', pos_col='Start_Position', ref_col='Reference_Allele', alt_col='Tumor_Seq_Allele2'):
+def maf_to_vcf(maf, sample, is_maf_zipped, sample_col='Tumor_Sample_Barcode', chrom_col='Chromosome', pos_col='Start_Position', ref_col='Reference_Allele', alt_col='Tumor_Seq_Allele2'):
 
   Variant = collections.namedtuple('Variant', 'CHROM POS REF ALT')
 
   # enumeration a maf into a variant
   header = None
-  for line, row in enumerate(csv.reader(open_file(maf, True), delimiter='\t')):
+  for line, row in enumerate(csv.reader(open_file(maf, is_maf_zipped), delimiter='\t')):
     if line % 1000 == 0:
       logging.debug('processed %i lines of %s...', line, maf)
 
@@ -178,6 +186,14 @@ if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Classify MSI using msiseq algorithm')
   parser.add_argument('--vcfs', required=True, nargs='+', help='input vcf files')
   parser.add_argument('--is_maf', action='store_true', help='vcf is actually a maf')
+  parser.add_argument('--maf_gzipped', action='store_true', help='is maf gzipped')
+  # sample_col='Tumor_Sample_Barcode', chrom_col='Chromosome', pos_col='Start_Position', ref_col='Reference_Allele', alt_col='Tumor_Seq_Allele2'
+  parser.add_argument('--maf_sample_col', default='Tumor_Sample_Barcode', help='sample col')
+  parser.add_argument('--maf_sample_chr', default='Chromosome', help='sample col')
+  parser.add_argument('--maf_sample_pos', default='Start_Position', help='sample col')
+  parser.add_argument('--maf_sample_ref', default='Reference_Allele', help='sample col')
+  parser.add_argument('--maf_sample_alt', default='Tumor_Seq_Allele2', help='sample col')
+  
   parser.add_argument('--verbose', action='store_true', help='more logging')
   parser.add_argument('--repeats', required=True, help='bed file of repeats')
   parser.add_argument('--capture', required=False, help='bed file of capture')
@@ -188,5 +204,5 @@ if __name__ == '__main__':
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=logging.DEBUG)
   else:
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=logging.INFO)
-  msiseq(args.vcfs, args.repeats, args.capture, args.threshold, args.capture_size, args.is_maf)
+  msiseq(args.vcfs, args.repeats, args.capture, args.threshold, args.capture_size, args.is_maf, args.maf_sample_col, args.maf_sample_chr, args.maf_sample_pos, args.maf_sample_ref, args.maf_sample_alt, args.maf_gzipped)
 
