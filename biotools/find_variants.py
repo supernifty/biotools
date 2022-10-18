@@ -12,12 +12,17 @@ import sys
 
 import cyvcf2
 
-def skip_header(fn):
-  for line in gzip.open(fn, 'rt'):
-    if not line.startswith('#'):
-      yield line
+def skip_header(fn, zipped):
+  if zipped:
+    for line in gzip.open(fn, 'rt'):
+      if not line.startswith('#'):
+        yield line
+  else:
+    for line in open(fn, 'rt'):
+      if not line.startswith('#'):
+        yield line
 
-def main(vcfs, mafs, variants_fn, padding):
+def main(vcfs, mafs, variants_fn, padding, maf_chromosome, maf_pos, maf_ref, maf_alt, maf_sample, maf_zipped):
   logging.info('reading %s...', variants_fn)
 
   # variants to find
@@ -56,9 +61,9 @@ def main(vcfs, mafs, variants_fn, padding):
   all_mafs = set()
   for maf in mafs:
     logging.info('reading %s...', maf)
-    for idx, row in enumerate(csv.DictReader(skip_header(maf), delimiter='\t')):
-      key = (row['Chromosome'], row['Start_Position'], row['Reference_Allele'], row['Tumor_Seq_Allele2'])
-      where = '{}-{}'.format(maf, row['Tumor_Sample_Barcode'])
+    for idx, row in enumerate(csv.DictReader(skip_header(maf, maf_zipped), delimiter='\t')):
+      key = (row[maf_chromosome], row[maf_pos], row[maf_ref], row[maf_alt])
+      where = '{}-{}'.format(maf, row[maf_sample])
       all_mafs.add(where)
       if key in variants:
         found[where].add(key)
@@ -89,6 +94,15 @@ def main(vcfs, mafs, variants_fn, padding):
       else:
         r[k] = 'Absent'
     ofh.writerow(r)
+
+  # write a summary to stderr
+  ofh = csv.DictWriter(sys.stderr, delimiter='\t', fieldnames=['Variant', 'Seen', 'Samples'])
+  ofh.writeheader()
+  samples = len(vcfs) + len(all_mafs)
+  for v in sorted(variants):
+    k = '/'.join(list(v))
+    seen = sum([1 if v in found[x] else 0 for x in found])
+    ofh.writerow({'Variant': k, 'Seen': seen, 'Samples': samples})
   
   logging.info('done')
 
@@ -96,8 +110,14 @@ if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='find variants')
   parser.add_argument('--vcfs', required=False, nargs='*', default=[], help='vcfs to check')
   parser.add_argument('--mafs', required=False, nargs='*', default=[], help='mafs to check')
+  parser.add_argument('--maf_chromosome', required=False, default='Chromosome', help='maf column name for chromosome')
+  parser.add_argument('--maf_pos', required=False, default='Start_Position', help='maf column name for start pos')
+  parser.add_argument('--maf_ref', required=False, default='Reference_Allele', help='maf column name for ref allele')
+  parser.add_argument('--maf_alt', required=False, default='Tumor_Seq_Allele2', help='maf column name for alt allele')
+  parser.add_argument('--maf_sample', required=False, default='Chromosome', help='maf column name for sample')
+  parser.add_argument('--maf_zipped', action='store_true', help='is the maf zipped?')
   parser.add_argument('--padding', required=False, default=1, type=int, help='file containing variants to look for')
-  parser.add_argument('--variants', required=True, help='file containing variants to look for')
+  parser.add_argument('--variants', required=True, help='file containing variants to look for - tsv with fields chrom pos ref alt')
   parser.add_argument('--verbose', action='store_true', help='more logging')
   args = parser.parse_args()
   if args.verbose:
@@ -105,4 +125,4 @@ if __name__ == '__main__':
   else:
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=logging.INFO)
 
-  main(args.vcfs, args.mafs, args.variants, args.padding)
+  main(args.vcfs, args.mafs, args.variants, args.padding, args.maf_chromosome, args.maf_pos, args.maf_ref, args.maf_alt, args.maf_sample, args.maf_zipped)

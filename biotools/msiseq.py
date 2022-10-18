@@ -42,7 +42,7 @@ def bed_to_tree(bed):
       chrom = chrom[3:]
     if chrom not in tree:
       tree[chrom] = intervaltree.IntervalTree()
-      logging.info('processing %s...', chrom)
+      logging.info('processing chromosome %s...', chrom)
     s = int(start)
     f = int(finish)
     # does it overlap with itself?
