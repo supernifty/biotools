@@ -15,7 +15,7 @@ import gzip
 import logging
 import sys
 
-def main(genes, transcripts, refseq):
+def main(genes, transcripts, refseq, coding):
   logging.info('starting...')
   genes = set(genes)
   if transcripts is not None:
@@ -27,6 +27,11 @@ def main(genes, transcripts, refseq):
     if (genes is not None or row['name2'] in genes) and (transcripts is None or row['name'] in transcripts):
       for x, y in zip(row['exonStarts'].split(','), row['exonEnds'].split(',')):
         if x != '' and y != '':
+          if coding:
+            min_coding = int(row['cdsStart'])
+            max_coding = int(row['cdsEnd'])
+            x = str(max([int(x), min_coding]))
+            y = str(min([int(y), max_coding]))
           sys.stdout.write('{}\t{}\t{}\t{}\n'.format(row['chrom'], x, y, row['name2']))
 
   logging.info('done')
@@ -36,6 +41,7 @@ if __name__ == '__main__':
   parser.add_argument('--genes', required=False, nargs='+', help='genes to include')
   parser.add_argument('--transcripts', required=False, nargs='+', help='transcripts to include')
   parser.add_argument('--refseq', required=True, help='refseq gz')
+  parser.add_argument('--coding', action='store_true', help='coding regions only')
   parser.add_argument('--verbose', action='store_true', help='more logging')
   args = parser.parse_args()
   if args.verbose:
@@ -43,4 +49,4 @@ if __name__ == '__main__':
   else:
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=logging.INFO)
 
-  main(args.genes, args.transcripts, args.refseq)
+  main(args.genes, args.transcripts, args.refseq, args.coding)

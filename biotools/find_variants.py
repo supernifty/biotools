@@ -96,8 +96,8 @@ if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='find variants')
   parser.add_argument('--vcfs', required=False, nargs='*', default=[], help='vcfs to check')
   parser.add_argument('--mafs', required=False, nargs='*', default=[], help='mafs to check')
-  parser.add_argument('--padding', required=False, default=1, type=int, help='file containing variants to look for')
-  parser.add_argument('--variants', required=True, help='file containing variants to look for')
+  parser.add_argument('--padding', required=False, default=1, type=int, help='tolerance for position')
+  parser.add_argument('--variants', required=True, help='file containing variants to look for - tsv with chrom pos ref alt')
   parser.add_argument('--verbose', action='store_true', help='more logging')
   args = parser.parse_args()
   if args.verbose:
