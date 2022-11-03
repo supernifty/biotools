@@ -22,7 +22,7 @@ def skip_header(fn, zipped):
       if not line.startswith('#'):
         yield line
 
-def main(vcfs, mafs, variants_fn, padding, maf_chromosome, maf_pos, maf_ref, maf_alt, maf_sample, maf_zipped):
+def main(vcfs, mafs, variants_fn, padding, maf_chromosome, maf_pos, maf_ref, maf_alt, maf_sample, maf_zipped, count_snvs):
   logging.info('reading %s...', variants_fn)
 
   # variants to find
@@ -58,6 +58,7 @@ def main(vcfs, mafs, variants_fn, padding, maf_chromosome, maf_pos, maf_ref, maf
 
   # Chromosome      Start_Position  End_Position    Strand  Variant_Classification  Variant_Type    Reference_Allele        Tumor_Seq_Allele1
   found_count = 0
+  snvs = collections.defaultdict(int)
   all_mafs = set()
   for maf in mafs:
     logging.info('reading %s...', maf)
@@ -69,11 +70,16 @@ def main(vcfs, mafs, variants_fn, padding, maf_chromosome, maf_pos, maf_ref, maf
         found[where].add(key)
         found_count += 1
         logging.debug('found %s in %s', key, where)
+      if len(row[maf_ref]) == 1 and len(row[maf_alt]) == 1:
+        snvs[where] += 1
       if idx % 10000 == 0:
         logging.debug('processed %i variants found %i last key %s', idx, found_count, key)
 
   logging.info('writing to stdout...')
-  ofh = csv.DictWriter(sys.stdout, delimiter='\t', fieldnames=['Filename'] + ['/'.join(list(v)) for v in sorted(variants)])
+  fieldnames = ['Filename']
+  if count_snvs:
+    fieldnames.append('snvs')
+  ofh = csv.DictWriter(sys.stdout, delimiter='\t', fieldnames=fieldnames + ['/'.join(list(v)) for v in sorted(variants)])
   ofh.writeheader()
   for vcf in vcfs:
     r = {'Filename': vcf}
@@ -87,6 +93,8 @@ def main(vcfs, mafs, variants_fn, padding, maf_chromosome, maf_pos, maf_ref, maf
 
   for maf in all_mafs:
     r = {'Filename': maf}
+    if count_snvs:
+      r['snvs'] = snvs[maf]
     for v in variants:
       k = '/'.join(list(v))
       if v in found[maf]:
@@ -118,6 +126,7 @@ if __name__ == '__main__':
   parser.add_argument('--maf_zipped', action='store_true', help='is the maf zipped?')
   parser.add_argument('--padding', required=False, default=1, type=int, help='file containing variants to look for')
   parser.add_argument('--variants', required=True, help='file containing variants to look for - tsv with fields chrom pos ref alt')
+  parser.add_argument('--count_snvs', action='store_true', help='more logging')
   parser.add_argument('--verbose', action='store_true', help='more logging')
   args = parser.parse_args()
   if args.verbose:
@@ -125,4 +134,4 @@ if __name__ == '__main__':
   else:
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=logging.INFO)
 
-  main(args.vcfs, args.mafs, args.variants, args.padding, args.maf_chromosome, args.maf_pos, args.maf_ref, args.maf_alt, args.maf_sample, args.maf_zipped)
+  main(args.vcfs, args.mafs, args.variants, args.padding, args.maf_chromosome, args.maf_pos, args.maf_ref, args.maf_alt, args.maf_sample, args.maf_zipped, args.count_snvs)
