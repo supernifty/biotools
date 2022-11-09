@@ -27,25 +27,30 @@ def main(vcfs, mafs, variants_fn, padding, maf_chromosome, maf_pos, maf_ref, maf
 
   # variants to find
   variants = {}
+  names = {}
   for r in csv.DictReader(open(variants_fn, 'rt'), delimiter='\t'): # expect chrom pos ref alt
     key = (r['chrom'], r['pos'], r['ref'], r['alt'])
     variants[key] = 0
+    names[key] = r.get('name', '{}-{}-{}-{}'.format(r['chrom'], r['pos'], r['ref'], r['alt']))
     if padding > 0:
       for p in range(padding + 1):
         newpos = int(r['pos']) + p
         key = (r['chrom'], str(newpos), r['ref'], r['alt'])
+        names[key] = r.get('name', '{}-{}-{}-{}'.format(r['chrom'], str(newpos), r['ref'], r['alt']))
         variants[key] = p
         newpos = int(r['pos']) - p
         key = (r['chrom'], str(newpos), r['ref'], r['alt'])
+        names[key] = r.get('name', '{}-{}-{}-{}'.format(r['chrom'], str(newpos), r['ref'], r['alt']))
         variants[key] = -p
 
   logging.info('checking for %i variants in total', len(variants))
+  logging.debug('names: %s', names)
 
   found = collections.defaultdict(set)
 
   # each vcf
-  for vcf in vcfs:
-    logging.info('reading %s...', vcf)
+  for idx, vcf in enumerate(vcfs):
+    logging.info('reading %i of %i: %s...', idx + 1, len(vcfs), vcf)
     last_chr = None
     for variant in cyvcf2.VCF(vcf):
       key = (variant.CHROM, str(variant.POS), variant.REF, variant.ALT[0])
@@ -79,16 +84,16 @@ def main(vcfs, mafs, variants_fn, padding, maf_chromosome, maf_pos, maf_ref, maf
   fieldnames = ['Filename']
   if count_snvs:
     fieldnames.append('snvs')
-  ofh = csv.DictWriter(sys.stdout, delimiter='\t', fieldnames=fieldnames + ['/'.join(list(v)) for v in sorted(variants)])
+  ofh = csv.DictWriter(sys.stdout, delimiter='\t', fieldnames=fieldnames + [names.get(v, '/'.join(list(v))) for v in sorted(variants)])
   ofh.writeheader()
   for vcf in vcfs:
     r = {'Filename': vcf}
     for v in variants:
       k = '/'.join(list(v))
       if v in found[vcf]:
-        r[k] = 'Present'
+        r[names.get(v, k)] = 'Present'
       else:
-        r[k] = 'Absent'
+        r[names.get(v, k)] = 'Absent'
     ofh.writerow(r)
 
   for maf in all_mafs:
@@ -98,9 +103,9 @@ def main(vcfs, mafs, variants_fn, padding, maf_chromosome, maf_pos, maf_ref, maf
     for v in variants:
       k = '/'.join(list(v))
       if v in found[maf]:
-        r[k] = 'Present'
+        r[names.get(v, k)] = 'Present'
       else:
-        r[k] = 'Absent'
+        r[names.get(v, k)] = 'Absent'
     ofh.writerow(r)
 
   # write a summary to stderr
@@ -110,7 +115,7 @@ def main(vcfs, mafs, variants_fn, padding, maf_chromosome, maf_pos, maf_ref, maf
   for v in sorted(variants):
     k = '/'.join(list(v))
     seen = sum([1 if v in found[x] else 0 for x in found])
-    ofh.writerow({'Variant': k, 'Seen': seen, 'Samples': samples})
+    ofh.writerow({'Variant': names.get(v, k), 'Seen': seen, 'Samples': samples})
   
   logging.info('done')
 
@@ -125,7 +130,7 @@ if __name__ == '__main__':
   parser.add_argument('--maf_sample', required=False, default='Chromosome', help='maf column name for sample')
   parser.add_argument('--maf_zipped', action='store_true', help='is the maf zipped?')
   parser.add_argument('--padding', required=False, default=1, type=int, help='file containing variants to look for')
-  parser.add_argument('--variants', required=True, help='file containing variants to look for - tsv with fields chrom pos ref alt')
+  parser.add_argument('--variants', required=True, help='file containing variants to look for - tsv with fields chrom pos ref alt (optional name)')
   parser.add_argument('--count_snvs', action='store_true', help='more logging')
   parser.add_argument('--verbose', action='store_true', help='more logging')
   args = parser.parse_args()
