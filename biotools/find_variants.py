@@ -11,6 +11,9 @@ import logging
 import sys
 
 import cyvcf2
+import pysam
+
+MIN_DEPTH=50
 
 def skip_header(fn, zipped):
   if zipped:
@@ -22,7 +25,16 @@ def skip_header(fn, zipped):
       if not line.startswith('#'):
         yield line
 
-def main(vcfs, mafs, variants_fn, padding, maf_chromosome, maf_pos, maf_ref, maf_alt, maf_sample, maf_zipped, count_snvs):
+def depth(v, samfile):
+  #return len([x for x in samfile.fetch(v[0], int(v[1]), int(v[1])+1) if x.mapping_quality >= 20])
+  #for x in samfile.pileup(v[0], int(v[1]), int(v[1])+1):
+  #  return x.n
+
+  min_mapq = 5
+  pileups = [x.n for x in samfile.pileup(v[0], int(v[1]), int(v[1]) + 1, min_mapping_quality=min_mapq) if int(v[1]) <= x.pos <int(v[1])+1]
+  return pileups[0]
+
+def main(vcfs, mafs, variants_fn, padding, maf_chromosome, maf_pos, maf_ref, maf_alt, maf_sample, maf_zipped, count_snvs, bams):
   logging.info('reading %s...', variants_fn)
 
   # variants to find
@@ -80,20 +92,42 @@ def main(vcfs, mafs, variants_fn, padding, maf_chromosome, maf_pos, maf_ref, maf
       if idx % 10000 == 0:
         logging.debug('processed %i variants found %i last key %s', idx, found_count, key)
 
+  # prep bams
+  bam_files = {}
+  if bams is not None:
+    for bam in bams:
+      bam_files[bam.split('/')[-1].split('.')[0]] = bam
+
   logging.info('writing to stdout...')
   fieldnames = ['Filename']
   if count_snvs:
     fieldnames.append('snvs')
   ofh = csv.DictWriter(sys.stdout, delimiter='\t', fieldnames=fieldnames + [names.get(v, '/'.join(list(v))) for v in sorted(variants)])
   ofh.writeheader()
-  for vcf in vcfs:
+  for vcf in vcfs: # each vcf
     r = {'Filename': vcf}
+    sample_name = vcf.split('/')[-1].split('.')[0]
+    if sample_name in bam_files:
+      logging.info('loading bam %s...', bam_files[sample_name])
+      samfile = pysam.AlignmentFile(bam_files[sample_name], "rb")
+    else:
+      samfile = None
+      
     for v in variants:
       k = '/'.join(list(v))
       if v in found[vcf]:
+        logging.debug('depth of %s is %i', v, depth(v, samfile)) # debugging
         r[names.get(v, k)] = 'Present'
-      else:
-        r[names.get(v, k)] = 'Absent'
+      else: # no variant
+        if samfile is None:
+          r[names.get(v, k)] = 'Absent'
+        else:
+          dp = depth(v, samfile)
+          logging.debug('depth for %s from %s is %i', v, bam_files[sample_name], dp)
+          if dp >= MIN_DEPTH:
+            r[names.get(v, k)] = 'Absent'
+          else:
+            r[names.get(v, k)] = 'LowDepth'
     ofh.writerow(r)
 
   for maf in all_mafs:
@@ -122,6 +156,7 @@ def main(vcfs, mafs, variants_fn, padding, maf_chromosome, maf_pos, maf_ref, maf
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='find variants')
   parser.add_argument('--vcfs', required=False, nargs='*', default=[], help='vcfs to check')
+  parser.add_argument('--bams', required=False, nargs='*', default=[], help='bams to check for depth')
   parser.add_argument('--mafs', required=False, nargs='*', default=[], help='mafs to check')
   parser.add_argument('--maf_chromosome', required=False, default='Chromosome', help='maf column name for chromosome')
   parser.add_argument('--maf_pos', required=False, default='Start_Position', help='maf column name for start pos')
@@ -139,4 +174,4 @@ if __name__ == '__main__':
   else:
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=logging.INFO)
 
-  main(args.vcfs, args.mafs, args.variants, args.padding, args.maf_chromosome, args.maf_pos, args.maf_ref, args.maf_alt, args.maf_sample, args.maf_zipped, args.count_snvs)
+  main(args.vcfs, args.mafs, args.variants, args.padding, args.maf_chromosome, args.maf_pos, args.maf_ref, args.maf_alt, args.maf_sample, args.maf_zipped, args.count_snvs, args.bams)

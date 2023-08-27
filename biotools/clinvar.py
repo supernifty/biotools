@@ -17,6 +17,7 @@ def main(gene_filter):
   stat = collections.defaultdict(int)
   genes = collections.defaultdict(int)
 
+  count = skipped = 0
   for count, variant in enumerate(cyvcf2.VCF('-')):
     try:
       gene = variant.INFO['GENEINFO']
@@ -29,7 +30,12 @@ def main(gene_filter):
 
     if gene_filter is not None and gene_name != gene_filter:
       continue 
-    stat[variant.INFO['CLNSIG']] += 1
+    try:
+      stat[variant.INFO['CLNSIG']] += 1
+    except:
+      # no clnsig
+      stat['missing'] += 1
+      skipped += 1
     if count % 10000 == 0:
       logging.debug('%s processed...', count)
 
@@ -39,7 +45,7 @@ def main(gene_filter):
     sys.stdout.write('{}\t{}\t{:.3f}\n'.format(c, stat[c], stat[c] / total))
 
   #logging.info(genes)
-  logging.info('done')
+  logging.info('done processing %i skipped %i', count, skipped)
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='clinvar stats')
