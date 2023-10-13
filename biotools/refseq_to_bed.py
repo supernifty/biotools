@@ -24,7 +24,7 @@ def main(genes, transcripts, refseq, coding):
   mins.default_factory = lambda: 3e9
   maxs = collections.defaultdict(int)
   for row in csv.DictReader(gzip.open(refseq, 'rt'), delimiter='\t'):
-    if (genes is not None or row['name2'] in genes) and (transcripts is None or row['name'] in transcripts):
+    if (genes is None or row['name2'] in genes) and (transcripts is None or row['name'] in transcripts):
       for x, y in zip(row['exonStarts'].split(','), row['exonEnds'].split(',')):
         if x != '' and y != '':
           if coding:
@@ -32,7 +32,7 @@ def main(genes, transcripts, refseq, coding):
             max_coding = int(row['cdsEnd'])
             x = str(max([int(x), min_coding]))
             y = str(min([int(y), max_coding]))
-          sys.stdout.write('{}\t{}\t{}\t{}\n'.format(row['chrom'], x, y, row['name2']))
+          sys.stdout.write('{}\t{}\t{}\t{}-{}\n'.format(row['chrom'], x, y, row['name2'], row['name']))
 
   logging.info('done')
 
