@@ -17,10 +17,11 @@ def make_xlsx(target, tsvs, delimiter, segment=2):
     logging.info('adding %s...', tsv)
     df = pd.read_csv(tsv, sep=delimiter)
     #sheet_name='-'.join(tsv.split('/')[-1].split('.')[:2])[:31] # first 31 chars of filename
-    sheet_name=tsv.split('/')[-1].split('.')[segment] # first 31 chars of filename
+    sheet_name=tsv.split('/')[-1].split('.')[segment][:31] # first 31 chars of filename
     df.to_excel(writer, index=False, sheet_name=sheet_name)
 
-  writer.save()
+  #writer.save()
+  writer._save()
   writer.close()
 
   sys.stderr.write('done\n')

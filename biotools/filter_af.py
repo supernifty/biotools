@@ -11,7 +11,7 @@ import numpy
 
 import cyvcf2
 
-def main(sample, af_threshold, dp_threshold, info_af, pass_only, dp_field, min_sample_ad, max_af, max_dp, vcf_in_fn="-", vcf_out_fh=sys.stdout):
+def main(sample, af_threshold, dp_threshold, info_af, pass_only, dp_field, min_sample_ad, max_af, max_dp, vcf_in_fn="-", vcf_out_fh=sys.stdout, af_name='AF'):
 
   logging.info('reading from stdin...')
 
@@ -51,14 +51,14 @@ def main(sample, af_threshold, dp_threshold, info_af, pass_only, dp_field, min_s
 
     if info_af:
       try:
-        af = variant.INFO["AF"]
+        af = variant.INFO[af_name]
       except:
         skipped_af += 1
         logging.debug('variant at %i has no info AF', variant.POS)
         continue
     else:
       try:
-        af = variant.format("AF")[sample_id][0] 
+        af = variant.format(af_name)[sample_id][0] 
       except:
         skipped_af += 1
         logging.debug('variant at %i has no sample AF', variant.POS)
@@ -97,6 +97,7 @@ if __name__ == '__main__':
   parser.add_argument('--max_dp', type=float, required=False, default=1e9,  help='maximum dp')
   parser.add_argument('--dp_field', required=False, default='DP',  help='name of DP field')
   parser.add_argument('--info_af', action='store_true', help='use af from info')
+  parser.add_argument('--af_name', required=False, default='AF', help='use af from info')
   parser.add_argument('--pass_only', action='store_true', help='reject non-pass')
   parser.add_argument('--min_sample_ad', nargs='*', required=False,  help='minimum ad sum for sample in the form sample=ad...')
   parser.add_argument('--verbose', action='store_true', help='more logging')
@@ -107,4 +108,4 @@ if __name__ == '__main__':
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=logging.INFO)
 
   # sample af vcf
-  main(args.sample, args.af, args.dp, args.info_af, args.pass_only, args.dp_field, args.min_sample_ad, args.max_af, args.max_dp)
+  main(args.sample, args.af, args.dp, args.info_af, args.pass_only, args.dp_field, args.min_sample_ad, args.max_af, args.max_dp, af_name=args.af_name)

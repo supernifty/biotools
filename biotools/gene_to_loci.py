@@ -12,7 +12,7 @@ import gzip
 import logging
 import sys
 
-def main(genes, refseq, ignore_alt_chrom, sort):
+def main(genes, refseq, ignore_alt_chrom, sort, unformatted):
   logging.info('starting...')
   genes = set(genes)
   mins = collections.defaultdict(int)
@@ -30,26 +30,29 @@ def main(genes, refseq, ignore_alt_chrom, sort):
       else:
         logging.debug('skipped alternative chrom %s', row['chrom'])
 
-  sys.stdout.write('Gene\tLoci\n')
-  if sort:
+  if unformatted:
+    # assume sort
     items = []
     for gene in genes:
       if gene in chroms:
         items.append((gene, chroms[gene], mins[gene], maxs[gene]))
-    for item in sorted(items, key=lambda item: (int(item[1].replace('chr', '')), item[2])):
-      sys.stdout.write('{}\t{}:{}-{}\n'.format(item[0], item[1], item[2], item[3]))
-
+    sys.stdout.write(' '.join(['{}:{}-{}'.format(item[1], item[2], item[3]) for item in sorted(items, key=lambda item: (int(item[1].replace('chr', '')), item[2]))]))
   else:
-    for gene in sorted(genes):
-      if gene not in chroms:
-        logging.warn('Failed to find %s in refseq', gene)
-      else:
-        sys.stdout.write('{}\t{}:{}-{}\n'.format(gene, chroms[gene], mins[gene], maxs[gene]))
-    
-  # alt
-  sys.stdout.write('\n')
-  sys.stdout.write('{}\n'.format(' '.join(sorted(genes))))
-  sys.stdout.write('{}\n'.format(' '.join(['{}:{}-{}'.format(chroms[gene], mins[gene], maxs[gene]) for gene in sorted(genes)])))
+    sys.stdout.write('Gene\tLoci\n')
+    if sort:
+      items = []
+      for gene in genes:
+        if gene in chroms:
+          items.append((gene, chroms[gene], mins[gene], maxs[gene]))
+      for item in sorted(items, key=lambda item: (int(item[1].replace('chr', '')), item[2])):
+        sys.stdout.write('{}\t{}:{}-{}\n'.format(item[0], item[1], item[2], item[3]))
+  
+    else:
+      for gene in sorted(genes):
+        if gene not in chroms:
+          logging.warn('Failed to find %s in refseq', gene)
+        else:
+          sys.stdout.write('{}\t{}:{}-{}\n'.format(gene, chroms[gene], mins[gene], maxs[gene]))
 
   logging.info('done')
 
@@ -59,6 +62,7 @@ if __name__ == '__main__':
   parser.add_argument('--refseq', required=True, help='refseq gz')
   parser.add_argument('--ignore_alt_chroms', action='store_true', help='refseq gz')
   parser.add_argument('--sort', action='store_true', help='sort on chromosome then position')
+  parser.add_argument('--unformatted', action='store_true', help='write as space separated list of regions')
   parser.add_argument('--verbose', action='store_true', help='more logging')
   args = parser.parse_args()
   if args.verbose:
@@ -66,4 +70,4 @@ if __name__ == '__main__':
   else:
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=logging.INFO)
 
-  main(args.genes, args.refseq, args.ignore_alt_chroms, args.sort)
+  main(args.genes, args.refseq, args.ignore_alt_chroms, args.sort, args.unformatted)
