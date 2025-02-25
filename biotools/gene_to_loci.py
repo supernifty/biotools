@@ -44,7 +44,7 @@ def main(genes, refseq, ignore_alt_chrom, sort, unformatted):
       for gene in genes:
         if gene in chroms:
           items.append((gene, chroms[gene], mins[gene], maxs[gene]))
-      for item in sorted(items, key=lambda item: (int(item[1].replace('chr', '')), item[2])):
+      for item in sorted(items, key=lambda item: (int(item[1].replace('chr', '').split('_')[0]), item[2])):
         sys.stdout.write('{}\t{}:{}-{}\n'.format(item[0], item[1], item[2], item[3]))
   
     else:
